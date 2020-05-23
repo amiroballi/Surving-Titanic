@@ -1,0 +1,89 @@
+---
+title: "Titanic Project on Survival"
+author: "Alec Miroballi"
+date: "4/24/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+## R Markdown
+```{r}
+
+titanic.test <- read.csv(file = "test.csv", stringsAsFactors = FALSE, header = TRUE)
+titanic.train<- read.csv(file = "train.csv", stringsAsFactors = FALSE, header= TRUE)
+library(mice)
+library(randomForest)
+
+
+
+titanic.train$Istrainset<-TRUE
+titanic.test$Istestset<-FALSE
+titanic.test$Survived<-NA
+
+#Classifying the blank responses of embarked in train set as S 
+titanic.train[titanic.train$Embarked=='', "Embarked"]<- 'S'
+#Using mice cart model to impute
+titanic.mids<-mice(titanic.train[,c("Age","Embarked")], m = 5, method="cart")
+titanic.mids1<-mice(titanic.test[,c("Age","Embarked")], m=5, method="cart")
+#Imputing values into a list of ages 
+imp <- list()
+for(i in 1:5){
+imp[[i]] <- complete(titanic.mids,i)
+}
+imp<-as.data.frame(imp)
+
+
+#imputing a list for test data set in age 
+imp1 <- list()
+
+for(i in 1:5){
+imp1[[i]] <- complete(titanic.mids1,i)
+}
+imp1<-as.data.frame(imp1)
+
+
+#replacing missing data set with complete data set
+titanic.train$Age<-imp$Age.1
+titanic.test$Age<-imp1$Age.1
+
+
+#Replacing missing value of fare with average of fairs in test data set 
+titanic.test[is.na(titanic.test$Fare), "Fare"]<-36
+
+
+#Categorical casting
+titanic.train$Pclass<-as.factor(titanic.train$Pclass)
+titanic.train$Sex<-as.factor(titanic.train$Sex)
+
+
+titanic.test$Pclass<-as.factor(titanic.test$Pclass)
+titanic.test$Sex<-as.factor(titanic.test$Sex)
+
+
+titanic.train$Survived<-as.factor(titanic.train$Survived)
+survived.equation<-"Survived~Pclass+Sex+Age+SibSp+Parch+Fare"
+survived.formula<-as.formula(survived.equation)
+
+titanic.model<-randomForest(formula=survived.formula, data=titanic.train, ntree=500,mtry=3, importance=TRUE)
+summary(titanic.train)
+feature.equation<-"Pclass+Sex+Age+SibSp+Parch+Fare"
+
+Survived <- predict(titanic.model,newdata=titanic.test)
+
+
+PassengerId<-titanic.test$PassengerId
+output.df<-as.data.frame(PassengerId)
+output.df$Survived<-Survived
+write.csv(output.df,file="kaggle_submission.csv", row.names = FALSE)
+output.df
+```
+
+
+```{r}
+
+```
+
